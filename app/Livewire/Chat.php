@@ -21,6 +21,9 @@ class Chat extends Component
     public $message;
     public $messages = [];
     public $file;
+    public $search         = '';
+    public $matchedIndexes = [];
+    public $currentMatch   = 0;
 
     public function mount($userId)
     {
@@ -189,4 +192,83 @@ class Chat extends Component
         }
     }
 
+    /**
+     * Function: highlightText
+     */
+    public function highlightText($text, $search)
+    {
+        // Escape the search term to safely insert into the regex.
+        $escaped = preg_quote($search, '/');
+        // Use preg_replace to wrap matched terms in a <mark> tag.
+        return preg_replace('/(' . $escaped . ')/i', '<mark>$1</mark>', e($text));
+    }
+
+    public function updatedSearch()
+    {
+        # Reset matches on new search
+        $this->matchedIndexes = [];
+
+        if (! empty($this->search)) {
+            foreach ($this->messages as $index => $message) {
+                if (stripos($message->message, $this->search) !== false) {
+                    $this->matchedIndexes[] = $index;
+                }
+            }
+        }
+
+        // Reset to first match
+        $this->currentMatch = count($this->matchedIndexes) > 0 ? 0 : -1;
+
+        // Scroll to the first match
+        if ($this->currentMatch !== -1) {
+            $this->scrollToMatch();
+        }
+    }
+
+    /**
+     * Function: nextMatch
+     */
+    public function nextMatch()
+    {
+        if (count($this->matchedIndexes) > 0) {
+            $this->currentMatch = ($this->currentMatch + 1) % count($this->matchedIndexes);
+            $this->scrollToMatch();
+        }
+    }
+
+    /**
+     * Function: prevMatch
+     */
+    public function prevMatch()
+    {
+        if (count($this->matchedIndexes) > 0) {
+            $this->currentMatch = ($this->currentMatch - 1 + count($this->matchedIndexes)) % count($this->matchedIndexes);
+            $this->scrollToMatch();
+        }
+    }
+
+    /**
+     * Function: scrollToMatch
+     */
+    public function scrollToMatch()
+    {
+        $index = $this->matchedIndexes[$this->currentMatch] ?? null;
+
+        if (! is_null($index)) {
+            $this->dispatch('scroll-to-message', index: $index);
+        }
+    }
+
+    /**
+     * Function: resetSearch
+     */
+    public function resetSearch()
+    {
+        $this->search         = '';
+        $this->matchedIndexes = [];
+        $this->currentMatch   = -1;
+
+        # Scroll to latest message
+        $this->dispatch('messages-updated');
+    }
 }
